@@ -142,6 +142,12 @@ module Wordmove
       end
 
       def mysql_import_command(dump_path, options)
+        temp_file = "#{dump_path}.tmp"
+        File.open(temp_file, 'w') do |output|
+          File.foreach(dump_path).with_index do |line, line_num|
+            output.puts(line) unless line_num == 0 && line.strip == '/*!999999\- enable the sandbox mode */'
+          end
+        end
         command = ["mysql"]
         command << "--host=#{Shellwords.escape(options[:host])}" if options[:host].present?
         command << "--port=#{Shellwords.escape(options[:port])}" if options[:port].present?
@@ -151,8 +157,10 @@ module Wordmove
         end
         command << "--database=#{Shellwords.escape(options[:name])}"
         command << Shellwords.split(options[:mysql_options]) if options[:mysql_options].present?
-        command << "--execute=\"SET autocommit=0;SOURCE #{dump_path};COMMIT\""
-        command.join(" ")
+        command << "< #{Shellwords.escape(temp_file)}"
+        command_string = command.join(" ")
+        at_exit { File.delete(temp_file) if File.exist?(temp_file) }
+        command_string
       end
 
       def compress_command(path)
